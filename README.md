@@ -64,6 +64,8 @@ docker run joaoopereira/dotnet-test-rerun:latest [somepathtodll] [OPTIONS]
 | `--framework, -f`         | Defines the target framework.                                                                                                                   |
 | `--verbosity, -v`         | Sets the verbosity level of the command. Allowed values are quiet, minimal, normal, detailed, and diagnostic.                                   |
 | `--deleteReports`         | Delete the generated report files.                                                                                                              |
+| `--failWhenNoTestsMatched`| Fail the run if a provided test filter does not match any tests.
+                                              |
 | `--collect`               | Enables data collector for the test run. Example: --collect "Code Coverage" or --collect "XPlat Code Coverage"                                  |
 | `--mergeCoverageFormat`   | Output coverage format. Possible values: Coverage, Cobertura or Xml. It requires dotnet coverage tool to be installed.                          |
 | `--environment, -e`       | Sets the value of an environment variable. Can be set multiple times.                                                                           |
