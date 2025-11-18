@@ -49,10 +49,12 @@ public class RerunCommand : RootCommand
         var startOfDotnetRun = DateTime.Now;
         IDirectoryInfo resultsDirectory = FileSystem.DirectoryInfo.New(Config.ResultsDirectory);
         await DotNetTestRunner.Test(Config, resultsDirectory.FullName);
-        if (DotNetTestRunner.GetErrorCode() == ErrorCode.FailedTests)
+        var stopProcessing = ShouldFailDueToFilterMismatch(Config.Filter);
+
+        if (stopProcessing is false && DotNetTestRunner.GetErrorCode() == ErrorCode.FailedTests)
         {
             var attempt = 1;
-            while (attempt <= Config.RerunMaxAttempts)
+            while (attempt <= Config.RerunMaxAttempts && stopProcessing is false)
             {
                 await Task.Delay(Config.Delay);
                 var trxFiles = TestResultsAnalyzer.GetTrxFiles(resultsDirectory, startOfDotnetRun);
@@ -85,7 +87,18 @@ public class RerunCommand : RootCommand
 
                         Log.Warning($"Rerun filter: {Config.Filter}");
                         await DotNetTestRunner.Test(Config, resultsDirectory.FullName);
+
+                        if (ShouldFailDueToFilterMismatch(Config.Filter))
+                        {
+                            stopProcessing = true;
+                            break;
+                        }
                     }
+                    if (stopProcessing)
+                    {
+                        break;
+                    }
+
                     attempt++;
                 }
                 else
@@ -96,7 +109,12 @@ public class RerunCommand : RootCommand
             }
         }
 
-        if (DotNetTestRunner.GetErrorCode() == ErrorCode.FailedTests)
+        if (stopProcessing)
+        {
+            Log.Warning("Detected unmatched test filter. No additional attempts will be executed.");
+        }
+
+        if (DotNetTestRunner.GetErrorCode() == ErrorCode.FailedTests && stopProcessing is false)
         {
             Environment.ExitCode = 1;
         }
@@ -123,4 +141,21 @@ public class RerunCommand : RootCommand
 
     private void MergeCoverageResults(IDirectoryInfo resultsDirectory, DateTime startTime)
         => DotNetCoverageRunner.Merge(Config, resultsDirectory.FullName, startTime);
+
+    private bool ShouldFailDueToFilterMismatch(string? filter)
+    {
+        if (Config.FailWhenNoTestsMatched is false || string.IsNullOrWhiteSpace(filter))
+        {
+            return false;
+        }
+
+        if (DotNetTestRunner.FilterMatchedAnyTests())
+        {
+            return false;
+        }
+
+        Environment.ExitCode = 1;
+        Log.Error($"The filter '{filter}' did not match any tests. Failing because --failWhenNoTestsMatched was specified.");
+        return true;
+    }
 }

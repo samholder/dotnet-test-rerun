@@ -120,4 +120,27 @@ public class DotNetTestRunnerTests
         // Assert
         dotNetTestRunner.GetErrorCode().Should().Be(ErrorCode.FailedTests);
     }
+
+    [Fact]
+    public async Task Test_FilterDoesNotMatchAnyTests_ShouldSetFlag()
+    {
+        // Arrange
+        var logger = new Logger();
+        var processExecution = Substitute.For<IProcessExecution>();
+        var dotNetTestRunner = new dotnet.test.rerun.DotNetRunner.DotNetTestRunner(logger, processExecution);
+        processExecution.End(Arg.Any<Process>())
+            .Returns(0);
+        processExecution.GetOutput()
+            .Returns("No test matches the given testcase filter FullyQualifiedName=My.Namespace.Test");
+        processExecution.GetError()
+            .Returns(string.Empty);
+        processExecution.Start(Arg.Any<ProcessStartInfo>())
+            .Returns(new Process());
+
+        // Act
+        await dotNetTestRunner.Test(new RerunCommandConfiguration(), "resultsDirectory");
+
+        // Assert
+        dotNetTestRunner.FilterMatchedAnyTests().Should().BeFalse();
+    }
 }

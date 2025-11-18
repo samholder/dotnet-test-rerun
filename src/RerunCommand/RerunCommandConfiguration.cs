@@ -24,6 +24,7 @@ public class RerunCommandConfiguration
     public int Delay { get; internal set; }
     public bool Blame { get; internal set; }
     public bool DeleteReportFiles { get; internal set; }
+    public bool FailWhenNoTestsMatched { get; internal set; }
     public string? Collector { get; internal set; }
     public CoverageFormat? MergeCoverageFormat { get; internal set; }
     public string? Configuration { get; internal set; }
@@ -130,6 +131,14 @@ public class RerunCommandConfiguration
             IsRequired = false,
             Arity = ArgumentArity.Zero
         };
+
+    private readonly Option<string> FailWhenNoTestsMatchedOption =
+        new(new[] { "--failWhenNoTestsMatched" })
+        {
+            Description = "Fail if a provided test filter does not match any tests.",
+            IsRequired = false,
+            Arity = ArgumentArity.Zero
+        };
     
     private readonly Option<string> CollectorOption =
         new(new[] { "--collect" })
@@ -207,6 +216,7 @@ public class RerunCommandConfiguration
         cmd.Add(FrameworkOption);
         cmd.Add(VerbosityOption);
         cmd.Add(DeleteReportFilesOption);
+        cmd.Add(FailWhenNoTestsMatchedOption);
         cmd.Add(CollectorOption);
         cmd.Add(MergeCoverageFormatOption);
         cmd.Add(InlineRunSettingsOption);
@@ -231,6 +241,7 @@ public class RerunCommandConfiguration
         Framework = context.ParseResult.GetValueForOption(FrameworkOption);
         Verbosity = context.ParseResult.GetValueForOption(VerbosityOption);
         DeleteReportFiles = context.ParseResult.FindResultFor(DeleteReportFilesOption) is not null;
+        FailWhenNoTestsMatched = context.ParseResult.FindResultFor(FailWhenNoTestsMatchedOption) is not null;
         Collector = context.ParseResult.GetValueForOption(CollectorOption);
         MergeCoverageFormat = context.ParseResult.GetValueForOption(MergeCoverageFormatOption);
         PArguments = FetchPArgumentsFromParse(context.ParseResult);

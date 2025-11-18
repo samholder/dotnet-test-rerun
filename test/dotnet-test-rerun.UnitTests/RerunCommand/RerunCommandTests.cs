@@ -1,4 +1,5 @@
-﻿using System.CommandLine;
+﻿using System;
+using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.IO.Abstractions;
@@ -176,6 +177,54 @@ public class RerunCommandTests
         testResultsAnalyzer.Received(2).GetTrxFiles(Arg.Any<IDirectoryInfo>(), Arg.Any<DateTime>());
         testResultsAnalyzer.Received(1).GetFailedTestsFilter(Arg.Is<IFileInfo[]>(files => files[0] == firstTrxFile));
         testResultsAnalyzer.Received(1).GetFailedTestsFilter(Arg.Is<IFileInfo[]>(files => files[0] == secondTrxFile));
+    }
+
+    [Fact]
+    public async Task Run_FailsWhenRerunFilterDoesNotMatchAnyTests()
+    {
+        // Arrange
+        var originalExitCode = Environment.ExitCode;
+        Environment.ExitCode = 0;
+        try
+        {
+            var logger = new Logger();
+            var config = new RerunCommandConfiguration();
+            InitialConfigurationSetup(config, extraParams: "--failWhenNoTestsMatched");
+            var dotNetTestRunner = Substitute.For<IDotNetTestRunner>();
+            var dotNetCoverageRunner = Substitute.For<IDotNetCoverageRunner>();
+            var fileSystem = new FileSystem();
+            var testResultsAnalyzer = Substitute.For<ITestResultsAnalyzer>();
+            var directoryInfo = fileSystem.DirectoryInfo.New(config.ResultsDirectory);
+            var command = new dotnet.test.rerun.RerunCommand.RerunCommand(logger, config, dotNetTestRunner,
+                dotNetCoverageRunner, fileSystem, testResultsAnalyzer);
+            var trxFile = fileSystem.FileInfo.New("First.trx");
+            var filterToRerun = "FullyQualifiedName=My.Namespace.Test";
+            var testFilterCollection = new TestFilterCollection();
+            testFilterCollection.Add(new TestFilter(string.Empty, new List<string>() { filterToRerun }));
+
+            dotNetTestRunner.Test(config, directoryInfo.FullName)
+                .Returns(Task.CompletedTask);
+            dotNetTestRunner.GetErrorCode()
+                .Returns(ErrorCode.FailedTests);
+            dotNetTestRunner.FilterMatchedAnyTests()
+                .Returns(true, false);
+            testResultsAnalyzer.GetTrxFiles(Arg.Any<IDirectoryInfo>(), Arg.Any<DateTime>())
+                .Returns(new[] { trxFile });
+            testResultsAnalyzer.GetFailedTestsFilter(Arg.Is<IFileInfo[]>(files => files[0] == trxFile))
+                .Returns(testFilterCollection);
+
+            // Act
+            await command.Run();
+
+            // Assert
+            Environment.ExitCode.Should().Be(1);
+            await dotNetTestRunner.Received(2).Test(config, directoryInfo.FullName);
+            dotNetTestRunner.Received(2).FilterMatchedAnyTests();
+        }
+        finally
+        {
+            Environment.ExitCode = originalExitCode;
+        }
     }
 
     [Fact]

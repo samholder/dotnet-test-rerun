@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using dotnet.test.rerun.Enums;
 using dotnet.test.rerun.Logging;
 using dotnet.test.rerun.RerunCommand;
@@ -12,6 +13,7 @@ public class DotNetTestRunner : IDotNetTestRunner
     private readonly ILogger Log;
     private readonly ProcessStartInfo ProcessStartInfo;
     private readonly IProcessExecution ProcessExecution;
+    private bool FilterMatchedTests = true;
     private string[] WellKnownErrors = { "No test source files were specified." };
 
     public DotNetTestRunner(ILogger logger,
@@ -40,6 +42,9 @@ public class DotNetTestRunner : IDotNetTestRunner
     public ErrorCode GetErrorCode()
         => ErrorCode;
 
+    public bool FilterMatchedAnyTests()
+        => FilterMatchedTests;
+
     /// <summary>
     /// Runs dotnet test with the specified arguments.
     /// </summary>
@@ -49,6 +54,7 @@ public class DotNetTestRunner : IDotNetTestRunner
         Log.Debug($"working directory: {ProcessStartInfo.WorkingDirectory}");
         Log.Debug($"forking {arguments}");
         ProcessStartInfo.Arguments = arguments;
+        FilterMatchedTests = true;
 
         using Process? ps = await ProcessExecution.Start(ProcessStartInfo);
         ProcessExecution.FetchOutput(ps!);
@@ -64,8 +70,18 @@ public class DotNetTestRunner : IDotNetTestRunner
     /// <exception cref="RerunException">command:\n\n\t\tdotnet {ProcessStartInfo.Arguments}</exception>
     private void HandleProcessEnd()
     {
+        var filterMatchedNoTests = DidFilterMatchNoTests();
+        FilterMatchedTests = !filterMatchedNoTests;
+
         if (ExitCode != 0)
         {
+            if (filterMatchedNoTests)
+            {
+                ErrorCode = ErrorCode.Error;
+                Log.Warning("dotnet test reported that the provided filter did not match any tests.");
+                return;
+            }
+
             if (IsWellKnownError())
             {
                 ErrorCode = ErrorCode.WellKnownError;
@@ -110,4 +126,11 @@ public class DotNetTestRunner : IDotNetTestRunner
     /// <returns></returns>
     private bool HaveSimpleFailedTests() => ExitCode == 1 &&
                                       ProcessExecution.GetOutput().Contains("Failed:");
+
+    private bool DidFilterMatchNoTests()
+    {
+        const string NoTestMatchMessage = "No test matches the given testcase filter";
+        return ProcessExecution.GetOutput().Contains(NoTestMatchMessage, StringComparison.InvariantCultureIgnoreCase) ||
+               ProcessExecution.GetError().Contains(NoTestMatchMessage, StringComparison.InvariantCultureIgnoreCase);
+    }
 }
