@@ -70,10 +70,18 @@ public class DotNetTestRunner : IDotNetTestRunner
     /// <exception cref="RerunException">command:\n\n\t\tdotnet {ProcessStartInfo.Arguments}</exception>
     private void HandleProcessEnd()
     {
-        FilterMatchedTests = !DidFilterMatchNoTests();
+        var filterMatchedNoTests = DidFilterMatchNoTests();
+        FilterMatchedTests = !filterMatchedNoTests;
 
         if (ExitCode != 0)
         {
+            if (filterMatchedNoTests)
+            {
+                ErrorCode = ErrorCode.Error;
+                Log.Warning("dotnet test reported that the provided filter did not match any tests.");
+                return;
+            }
+
             if (IsWellKnownError())
             {
                 ErrorCode = ErrorCode.WellKnownError;

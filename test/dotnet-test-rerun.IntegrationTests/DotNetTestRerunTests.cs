@@ -111,6 +111,25 @@ public class DotNetTestRerunTests
     }
 
     [Fact]
+    public async Task DotnetTestRerun_RunXUnitExample_WithUnmatchedFilter_LogsNoTestsMatchedMessage()
+    {
+        // Arrange
+        Environment.ExitCode = 0;
+        const string filter = "FullyQualifiedName=This.Filter.Does.Not.Match";
+
+        // Act
+        var output = await RunDotNetTestRerunAndCollectOutputMessage(
+            "XUnitExample",
+            $"--filter {filter} --failWhenNoTestsMatched");
+
+        // Assert
+        output.Should().Contain("No test matches the given testcase filter", Exactly.Once());
+        output.Should().Contain(
+            $"The filter '{filter}' did not match any tests. Failing because --failWhenNoTestsMatched was specified.");
+        Environment.ExitCode.Should().Be(1);
+    }
+
+    [Fact]
     public async Task DotnetTestRerun_RunNUnitExample_WithPropertiesActive_Success()
     {
         // Arrange
